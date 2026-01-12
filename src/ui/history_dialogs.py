@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QLineEdit, QMessageBox, QHeaderView,
-    QDialogButtonBox, QTextEdit, QComboBox
+    QDialogButtonBox, QTextEdit, QComboBox, QFormLayout
 )
 
 from src import db
@@ -67,6 +67,14 @@ class PromptsHistoryDialog(QDialog):
 
         # Кнопки
         buttons_layout = QHBoxLayout()
+        self.add_button = QPushButton('Добавить')
+        self.add_button.clicked.connect(self.on_add_clicked)
+        buttons_layout.addWidget(self.add_button)
+
+        self.edit_button = QPushButton('Редактировать')
+        self.edit_button.clicked.connect(self.on_edit_clicked)
+        buttons_layout.addWidget(self.edit_button)
+
         self.use_button = QPushButton('Использовать выбранный')
         self.use_button.clicked.connect(self.on_use_clicked)
         buttons_layout.addWidget(self.use_button)
@@ -121,12 +129,25 @@ class PromptsHistoryDialog(QDialog):
             tags_item.setFlags(tags_item.flags() & ~Qt.ItemIsEditable)
             self.table.setItem(row, 2, tags_item)
 
-            # Кнопка просмотра
+            # Кнопки действий
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout()
+            actions_layout.setContentsMargins(2, 2, 2, 2)
+            actions_widget.setLayout(actions_layout)
+
             view_button = QPushButton('Просмотр')
             view_button.clicked.connect(
                 lambda checked, p=prompt: self.view_prompt(p)
             )
-            self.table.setCellWidget(row, 3, view_button)
+            actions_layout.addWidget(view_button)
+
+            edit_button = QPushButton('Редактировать')
+            edit_button.clicked.connect(
+                lambda checked, p=prompt: self.edit_prompt(p)
+            )
+            actions_layout.addWidget(edit_button)
+
+            self.table.setCellWidget(row, 3, actions_widget)
 
     def on_search_changed(self):
         """Обработчик изменения поискового запроса."""
@@ -194,6 +215,34 @@ class PromptsHistoryDialog(QDialog):
                 if reply == QMessageBox.Yes:
                     db.delete_prompt(prompt_id)
                     self.load_prompts()
+
+    def on_add_clicked(self):
+        """Обработчик добавления промта."""
+        dialog = PromptEditDialog(self, None)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_prompts()
+
+    def on_edit_clicked(self):
+        """Обработчик редактирования промта."""
+        current_row = self.table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, 'Предупреждение', 'Выберите промт!')
+            return
+
+        prompt_item = self.table.item(current_row, 1)
+        if prompt_item:
+            prompt_id = prompt_item.data(Qt.UserRole)
+            prompt = db.get_prompt_by_id(prompt_id)
+            if prompt:
+                dialog = PromptEditDialog(self, prompt)
+                if dialog.exec_() == QDialog.Accepted:
+                    self.load_prompts()
+
+    def edit_prompt(self, prompt: dict):
+        """Редактировать промт из кнопки в таблице."""
+        dialog = PromptEditDialog(self, prompt)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_prompts()
 
 
 class ResultsHistoryDialog(QDialog):
@@ -405,3 +454,85 @@ class ResultsHistoryDialog(QDialog):
             f'Выбрано результатов: {len(selected_rows)}. '
             'Экспорт будет реализован в следующей версии.'
         )
+
+
+class PromptEditDialog(QDialog):
+    """Диалог для добавления/редактирования промта."""
+
+    def __init__(self, parent=None, prompt: Optional[dict] = None):
+        """Инициализация диалога."""
+        super().__init__(parent)
+        self.prompt = prompt
+        is_edit = prompt is not None
+        self.setWindowTitle(
+            'Редактировать промт' if is_edit else 'Добавить промт'
+        )
+        self.setMinimumSize(600, 400)
+        self.init_ui()
+
+    def init_ui(self):
+        """Инициализация интерфейса."""
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        form = QFormLayout()
+
+        # Поле для текста промта
+        self.prompt_input = QTextEdit()
+        self.prompt_input.setPlaceholderText('Введите текст промта...')
+        self.prompt_input.setMinimumHeight(200)
+        form.addRow('Промт *:', self.prompt_input)
+
+        # Поле для тегов
+        self.tags_input = QLineEdit()
+        self.tags_input.setPlaceholderText('тег1, тег2, тег3')
+        form.addRow('Теги:', self.tags_input)
+
+        # Заполнение полей, если редактируем
+        if self.prompt:
+            self.prompt_input.setPlainText(self.prompt.get('prompt', ''))
+            self.tags_input.setText(self.prompt.get('tags', '') or '')
+
+        layout.addLayout(form)
+
+        # Кнопки
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        button_box.accepted.connect(self.validate_and_accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def validate_and_accept(self):
+        """Валидация и принятие диалога."""
+        prompt_text = self.prompt_input.toPlainText().strip()
+        tags = self.tags_input.text().strip()
+
+        if not prompt_text:
+            QMessageBox.warning(
+                self,
+                'Ошибка',
+                'Поле "Промт" обязательно для заполнения!'
+            )
+            return
+
+        try:
+            if self.prompt:
+                # Редактирование существующего промта
+                db.update_prompt(
+                    self.prompt['id'],
+                    prompt=prompt_text,
+                    tags=tags if tags else None
+                )
+            else:
+                # Добавление нового промта
+                db.create_prompt(prompt_text, tags if tags else None)
+
+            self.accept()
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                'Ошибка',
+                f'Ошибка при сохранении промта:\n{str(e)}'
+            )
