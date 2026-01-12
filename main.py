@@ -8,12 +8,17 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QComboBox,
-    QLabel, QLineEdit, QMessageBox, QCheckBox, QHeaderView, QProgressBar
+    QLabel, QLineEdit, QMessageBox, QCheckBox, QHeaderView, QProgressBar,
+    QMenuBar, QMenu, QAction
 )
+from PyQt5.QtGui import QKeySequence
 
 from src import db
 from src.models import Model, get_active_models, add_default_models
 from src.network import send_prompt_to_model
+from src.ui.models_dialog import ModelsDialog
+from src.ui.history_dialogs import PromptsHistoryDialog, ResultsHistoryDialog
+from src.export import export_to_markdown, export_to_json
 
 
 class RequestWorker(QThread):
@@ -57,6 +62,7 @@ class MainWindow(QMainWindow):
         add_default_models()
 
         self.init_ui()
+        self.create_menu()
 
     def init_ui(self):
         """Инициализация интерфейса."""
@@ -80,6 +86,41 @@ class MainWindow(QMainWindow):
 
         # Обновление списка промтов
         self.update_prompts_combo()
+
+    def create_menu(self):
+        """Создать меню приложения."""
+        menubar = self.menuBar()
+
+        # Меню "Настройки"
+        settings_menu = menubar.addMenu('Настройки')
+        models_action = QAction('Управление моделями', self)
+        models_action.setShortcut(QKeySequence('Ctrl+M'))
+        models_action.triggered.connect(self.on_manage_models)
+        settings_menu.addAction(models_action)
+
+        # Меню "История"
+        history_menu = menubar.addMenu('История')
+        prompts_action = QAction('История промтов', self)
+        prompts_action.setShortcut(QKeySequence('Ctrl+P'))
+        prompts_action.triggered.connect(self.on_prompts_history)
+        history_menu.addAction(prompts_action)
+
+        results_action = QAction('История результатов', self)
+        results_action.setShortcut(QKeySequence('Ctrl+R'))
+        results_action.triggered.connect(self.on_results_history)
+        history_menu.addAction(results_action)
+
+        # Меню "Экспорт"
+        export_menu = menubar.addMenu('Экспорт')
+        export_md_action = QAction('Экспорт в Markdown', self)
+        export_md_action.setShortcut(QKeySequence('Ctrl+E'))
+        export_md_action.triggered.connect(self.on_export_markdown)
+        export_menu.addAction(export_md_action)
+
+        export_json_action = QAction('Экспорт в JSON', self)
+        export_json_action.setShortcut(QKeySequence('Ctrl+J'))
+        export_json_action.triggered.connect(self.on_export_json)
+        export_menu.addAction(export_json_action)
 
     def create_prompt_panel(self) -> QWidget:
         """Создать панель ввода промта."""
@@ -202,12 +243,21 @@ class MainWindow(QMainWindow):
         self.current_prompt_id = None
 
         # Получение активных моделей
-        models = get_active_models()
-        if not models:
-            QMessageBox.warning(
+        try:
+            models = get_active_models()
+            if not models:
+                QMessageBox.warning(
+                    self,
+                    'Предупреждение',
+                    'Нет активных моделей! Добавьте модели в настройках '
+                    '(Настройки -> Управление моделями).'
+                )
+                return
+        except Exception as e:
+            QMessageBox.critical(
                 self,
-                'Предупреждение',
-                'Нет активных моделей! Добавьте модели в настройках.'
+                'Ошибка',
+                f'Ошибка при загрузке моделей:\n{str(e)}'
             )
             return
 
@@ -218,9 +268,18 @@ class MainWindow(QMainWindow):
         self.save_results_button.setEnabled(False)
 
         # Запуск потока для запросов
-        self.worker = RequestWorker(prompt_text, models)
-        self.worker.finished.connect(self.on_requests_finished)
-        self.worker.start()
+        try:
+            self.worker = RequestWorker(prompt_text, models)
+            self.worker.finished.connect(self.on_requests_finished)
+            self.worker.start()
+        except Exception as e:
+            self.progress_bar.setVisible(False)
+            self.send_button.setEnabled(True)
+            QMessageBox.critical(
+                self,
+                'Ошибка',
+                f'Ошибка при запуске запросов:\n{str(e)}'
+            )
 
     def on_requests_finished(self, results: List[Dict[str, Any]]):
         """Обработчик завершения запросов."""
@@ -339,6 +398,95 @@ class MainWindow(QMainWindow):
         self.results_table.setRowCount(0)
         self.current_prompt_id = None
         self.save_results_button.setEnabled(False)
+
+    def on_manage_models(self):
+        """Обработчик открытия диалога управления моделями."""
+        dialog = ModelsDialog(self)
+        if dialog.exec_() == ModelsDialog.Accepted:
+            # Обновление списка активных моделей не требуется,
+            # так как они загружаются при каждом запросе
+            QMessageBox.information(
+                self,
+                'Информация',
+                'Изменения сохранены. Они вступят в силу при следующем запросе.'
+            )
+
+    def on_prompts_history(self):
+        """Обработчик открытия истории промтов."""
+        dialog = PromptsHistoryDialog(self)
+        if dialog.exec_() == PromptsHistoryDialog.Accepted:
+            if dialog.selected_prompt_id:
+                prompt = db.get_prompt_by_id(dialog.selected_prompt_id)
+                if prompt:
+                    self.prompt_input.setPlainText(prompt['prompt'])
+                    if prompt.get('tags'):
+                        self.tags_input.setText(prompt['tags'])
+                    self.update_prompts_combo()
+
+    def on_results_history(self):
+        """Обработчик открытия истории результатов."""
+        dialog = ResultsHistoryDialog(self)
+        dialog.exec_()
+
+    def on_export_markdown(self):
+        """Экспорт результатов в Markdown."""
+        if not self.temp_results or not self.current_prompt_id:
+            QMessageBox.warning(
+                self,
+                'Предупреждение',
+                'Нет результатов для экспорта!'
+            )
+            return
+
+        prompt = db.get_prompt_by_id(self.current_prompt_id)
+        prompt_text = prompt['prompt'] if prompt else 'Неизвестный промт'
+
+        # Получаем названия моделей
+        from src.models import load_models
+        models = load_models()
+        model_dict = {m.id: m.name for m in models}
+
+        export_results = []
+        for result in self.temp_results:
+            export_results.append({
+                'model_name': model_dict.get(result['model_id'], 'Неизвестно'),
+                'response_text': result['response_text'],
+                'created_at': result.get('created_at', ''),
+                'tokens_used': result.get('tokens_used'),
+                'response_time': result.get('response_time')
+            })
+
+        export_to_markdown(export_results, prompt_text, self)
+
+    def on_export_json(self):
+        """Экспорт результатов в JSON."""
+        if not self.temp_results or not self.current_prompt_id:
+            QMessageBox.warning(
+                self,
+                'Предупреждение',
+                'Нет результатов для экспорта!'
+            )
+            return
+
+        prompt = db.get_prompt_by_id(self.current_prompt_id)
+        prompt_text = prompt['prompt'] if prompt else 'Неизвестный промт'
+
+        # Получаем названия моделей
+        from src.models import load_models
+        models = load_models()
+        model_dict = {m.id: m.name for m in models}
+
+        export_results = []
+        for result in self.temp_results:
+            export_results.append({
+                'model_name': model_dict.get(result['model_id'], 'Неизвестно'),
+                'response_text': result['response_text'],
+                'created_at': result.get('created_at', ''),
+                'tokens_used': result.get('tokens_used'),
+                'response_time': result.get('response_time')
+            })
+
+        export_to_json(export_results, prompt_text, self)
 
 
 def main():
