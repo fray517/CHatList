@@ -4,12 +4,14 @@ import sys
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
+import markdown
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QComboBox,
     QLabel, QLineEdit, QMessageBox, QCheckBox, QHeaderView, QProgressBar,
-    QMenuBar, QMenu, QAction
+    QMenuBar, QMenu, QAction, QPlainTextEdit, QDialog, QDialogButtonBox
 )
 from PyQt5.QtGui import QKeySequence
 
@@ -166,17 +168,22 @@ class MainWindow(QMainWindow):
     def create_results_table(self) -> QTableWidget:
         """Создать таблицу результатов."""
         table = QTableWidget()
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(['Выбрать', 'Модель', 'Ответ'])
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(['Выбрать', 'Модель', 'Ответ', 'Действия'])
 
         # Настройка колонок
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
 
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QTableWidget.SelectRows)
+        
+        # Установка минимальной высоты строк
+        table.verticalHeader().setDefaultSectionSize(150)
+        table.verticalHeader().setMinimumSectionSize(100)
 
         return table
 
@@ -310,7 +317,7 @@ class MainWindow(QMainWindow):
             model_item.setFlags(model_item.flags() & ~Qt.ItemIsEditable)
             self.results_table.setItem(row, 1, model_item)
 
-            # Ответ
+            # Ответ (многострочное поле)
             if result['success']:
                 response_text = result.get('response_text', 'Ошибка парсинга')
                 self.temp_results.append({
@@ -322,9 +329,25 @@ class MainWindow(QMainWindow):
             else:
                 response_text = f"Ошибка: {result.get('error', 'Неизвестная ошибка')}"
 
-            response_item = QTableWidgetItem(response_text)
-            response_item.setFlags(response_item.flags() & ~Qt.ItemIsEditable)
-            self.results_table.setItem(row, 2, response_item)
+            # Используем QPlainTextEdit для многострочного отображения
+            text_widget = QPlainTextEdit()
+            text_widget.setPlainText(response_text)
+            text_widget.setReadOnly(True)
+            text_widget.setFrameStyle(0)  # Убираем рамку
+            text_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            text_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            # Устанавливаем минимальную высоту
+            text_widget.setMinimumHeight(100)
+            text_widget.setMaximumHeight(300)
+            
+            self.results_table.setCellWidget(row, 2, text_widget)
+
+            # Кнопка "Открыть" для просмотра в markdown
+            open_button = QPushButton('Открыть')
+            open_button.clicked.connect(
+                lambda checked, r=row: self.open_response_markdown(r)
+            )
+            self.results_table.setCellWidget(row, 3, open_button)
 
         # Включение кнопки сохранения
         if self.temp_results:
@@ -398,6 +421,124 @@ class MainWindow(QMainWindow):
         self.results_table.setRowCount(0)
         self.current_prompt_id = None
         self.save_results_button.setEnabled(False)
+
+    def open_response_markdown(self, row: int):
+        """Открыть ответ нейросети в форматированном markdown."""
+        if row >= len(self.temp_results):
+            QMessageBox.warning(
+                self,
+                'Предупреждение',
+                'Не удалось получить ответ для отображения.'
+            )
+            return
+
+        result = self.temp_results[row]
+        response_text = result.get('response_text', '')
+
+        # Получаем название модели
+        from src.models import load_models
+        models = load_models()
+        model = next(
+            (m for m in models if m.id == result['model_id']),
+            None
+        )
+        model_name = model.name if model else 'Неизвестная модель'
+
+        # Создаём диалог для отображения markdown
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'Ответ: {model_name}')
+        dialog.setMinimumSize(800, 600)
+
+        layout = QVBoxLayout()
+        dialog.setLayout(layout)
+
+        # Информация о модели
+        info_label = QLabel(
+            f'<b>Модель:</b> {model_name}<br>'
+            f'<b>Дата:</b> {result.get("created_at", "Неизвестно")}'
+        )
+        layout.addWidget(info_label)
+
+        # Текстовое поле для отображения markdown
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+
+        # Конвертируем markdown в HTML
+        try:
+            html_content = markdown.markdown(
+                response_text,
+                extensions=['fenced_code', 'tables', 'nl2br']
+            )
+            # Добавляем базовые стили для улучшения отображения
+            styled_html = f'''
+            <html>
+            <head>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.6;
+                        padding: 10px;
+                    }}
+                    code {{
+                        background-color: #f4f4f4;
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                        font-family: "Courier New", monospace;
+                    }}
+                    pre {{
+                        background-color: #f4f4f4;
+                        padding: 10px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                    }}
+                    pre code {{
+                        background-color: transparent;
+                        padding: 0;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 10px 0;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f2f2f2;
+                        font-weight: bold;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        margin-top: 20px;
+                        margin-bottom: 10px;
+                    }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            '''
+            text_edit.setHtml(styled_html)
+        except Exception as e:
+            # Если ошибка при конвертации, показываем как обычный текст
+            text_edit.setPlainText(response_text)
+            QMessageBox.warning(
+                dialog,
+                'Предупреждение',
+                f'Ошибка при форматировании markdown: {str(e)}\n'
+                'Текст отображается без форматирования.'
+            )
+
+        layout.addWidget(text_edit)
+
+        # Кнопки
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        dialog.exec_()
 
     def on_manage_models(self):
         """Обработчик открытия диалога управления моделями."""
