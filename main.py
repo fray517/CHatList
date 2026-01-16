@@ -22,6 +22,8 @@ from src.network import send_prompt_to_model
 from src.ui.models_dialog import ModelsDialog
 from src.ui.history_dialogs import PromptsHistoryDialog, ResultsHistoryDialog
 from src.ui.prompt_enhancer_dialog import PromptEnhancerDialog
+from src.ui.settings_dialog import SettingsDialog
+from src.ui.about_dialog import AboutDialog
 from src.export import export_to_markdown, export_to_json
 
 
@@ -72,6 +74,9 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         self.create_menu()
+        
+        # Применение настроек темы и шрифта (после создания UI)
+        self.apply_settings()
 
     def init_ui(self):
         """Инициализация интерфейса."""
@@ -106,6 +111,12 @@ class MainWindow(QMainWindow):
         models_action.setShortcut(QKeySequence('Ctrl+M'))
         models_action.triggered.connect(self.on_manage_models)
         settings_menu.addAction(models_action)
+        
+        settings_menu.addSeparator()
+        
+        app_settings_action = QAction('Настройки приложения', self)
+        app_settings_action.triggered.connect(self.on_app_settings)
+        settings_menu.addAction(app_settings_action)
 
         # Меню "История"
         history_menu = menubar.addMenu('История')
@@ -137,6 +148,12 @@ class MainWindow(QMainWindow):
         export_json_action.setShortcut(QKeySequence('Ctrl+J'))
         export_json_action.triggered.connect(self.on_export_json)
         export_menu.addAction(export_json_action)
+
+        # Меню "Справка"
+        help_menu = menubar.addMenu('Справка')
+        about_action = QAction('О программе', self)
+        about_action.triggered.connect(self.on_about)
+        help_menu.addAction(about_action)
 
     def create_prompt_panel(self) -> QWidget:
         """Создать панель ввода промта."""
@@ -669,6 +686,122 @@ class MainWindow(QMainWindow):
                     'Успех',
                     'Улучшенный промт подставлен в поле ввода!'
                 )
+
+    def apply_settings(self):
+        """Применить настройки темы и шрифта."""
+        theme = db.get_setting('theme', 'light')
+        font_size = db.get_setting('font_size', '10')
+
+        # Применение темы
+        if theme == 'dark':
+            self.setStyleSheet('''
+                QMainWindow {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QWidget {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QTextEdit, QPlainTextEdit, QLineEdit {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 1px solid #555555;
+                }
+                QPushButton {
+                    background-color: #404040;
+                    color: #ffffff;
+                    border: 1px solid #555555;
+                    padding: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #505050;
+                }
+                QPushButton:pressed {
+                    background-color: #353535;
+                }
+                QTableWidget {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    gridline-color: #555555;
+                }
+                QTableWidget::item {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                }
+                QTableWidget::item:selected {
+                    background-color: #505050;
+                }
+                QHeaderView::section {
+                    background-color: #404040;
+                    color: #ffffff;
+                    padding: 5px;
+                    border: 1px solid #555555;
+                }
+                QComboBox {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 1px solid #555555;
+                    padding: 3px;
+                }
+                QComboBox::drop-down {
+                    border: none;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    selection-background-color: #505050;
+                }
+                QCheckBox {
+                    color: #ffffff;
+                }
+                QLabel {
+                    color: #ffffff;
+                }
+                QMenuBar {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QMenuBar::item:selected {
+                    background-color: #404040;
+                }
+                QMenu {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                }
+                QMenu::item:selected {
+                    background-color: #505050;
+                }
+            ''')
+        else:
+            # Светлая тема (по умолчанию)
+            self.setStyleSheet('')
+
+        # Применение размера шрифта
+        try:
+            font_size_int = int(font_size)
+            font = self.font()
+            font.setPointSize(font_size_int)
+            self.setFont(font)
+        except (ValueError, TypeError):
+            pass
+
+    def on_app_settings(self):
+        """Обработчик открытия диалога настроек."""
+        dialog = SettingsDialog(self)
+        if dialog.exec_() == SettingsDialog.Accepted:
+            # Применение новых настроек
+            self.apply_settings()
+            QMessageBox.information(
+                self,
+                'Информация',
+                'Настройки применены!'
+            )
+
+    def on_about(self):
+        """Обработчик открытия диалога "О программе"."""
+        dialog = AboutDialog(self)
+        dialog.exec_()
 
 
 def main():
