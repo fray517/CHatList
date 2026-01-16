@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import sys
 import time
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
@@ -10,11 +12,22 @@ import requests
 
 from src.models import Model
 
+# Импорт версии
+_version_path = os.path.join(os.path.dirname(__file__), '..', 'version.py')
+if os.path.exists(_version_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('version', _version_path)
+    version_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(version_module)
+    __version__ = version_module.__version__
+else:
+    __version__ = '1.0.0'  # Fallback
+
 
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format=f'%(asctime)s - ChatList v{__version__} - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 

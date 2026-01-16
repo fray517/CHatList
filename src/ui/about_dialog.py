@@ -1,9 +1,25 @@
 """Диалог "О программе"."""
 
+import sys
+import os
+
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPushButton, QDialogButtonBox
 )
 from PyQt5.QtCore import Qt
+
+# Импорт версии
+_version_path = os.path.join(
+    os.path.dirname(__file__), '..', '..', 'version.py'
+)
+if os.path.exists(_version_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('version', _version_path)
+    version_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(version_module)
+    __version__ = version_module.__version__
+else:
+    __version__ = '1.0.0'  # Fallback
 
 
 class AboutDialog(QDialog):
@@ -30,7 +46,7 @@ class AboutDialog(QDialog):
         layout.addWidget(title_label)
 
         # Версия
-        version_label = QLabel('Версия 1.0.0')
+        version_label = QLabel(f'Версия {__version__}')
         version_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(version_label)
 

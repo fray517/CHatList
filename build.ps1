@@ -12,17 +12,34 @@ if (-not $env:VIRTUAL_ENV) {
 Write-Host "Проверка PyInstaller..." -ForegroundColor Yellow
 pip install pyinstaller --quiet
 
+# Получение версии из version.py
+$version = "1.0.0"
+$versionLines = Get-Content "version.py"
+foreach ($line in $versionLines) {
+    if ($line.Contains("__version__")) {
+        $parts = $line.Split("=")
+        if ($parts.Length -gt 1) {
+            $versionPart = $parts[1].Trim()
+            $version = $versionPart.Trim("'").Trim('"').Trim()
+            break
+        }
+    }
+}
+Write-Host "Версия приложения: $version" -ForegroundColor Cyan
+
 # Сборка исполняемого файла
 Write-Host "Запуск PyInstaller..." -ForegroundColor Yellow
 if (Test-Path "CHatList.spec") {
     pyinstaller CHatList.spec
 } else {
     if (Test-Path "app.ico") {
-        pyinstaller --onefile --windowed --name "CHatList" --icon=app.ico main.py
+        pyinstaller --onefile --windowed --name "CHatList-$version" --icon=app.ico main.py
     } else {
-        pyinstaller --onefile --windowed --name "CHatList" main.py
+        pyinstaller --onefile --windowed --name "CHatList-$version" main.py
     }
 }
 
-Write-Host "`nСборка завершена!" -ForegroundColor Green
-Write-Host "Исполняемый файл находится в папке: dist\CHatList.exe" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Сборка завершена!" -ForegroundColor Green
+$exePath = "dist\CHatList-$version.exe"
+Write-Host "Исполняемый файл находится в папке: $exePath" -ForegroundColor Cyan

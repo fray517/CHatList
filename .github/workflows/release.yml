@@ -1,0 +1,52 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Запускается при создании тега вида v1.0.0
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Get version
+      id: get_version
+      run: |
+        python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(f'VERSION={__version__}')" >> $env:GITHUB_ENV
+        echo "Version: $env:VERSION"
+    
+    - name: Build executable
+      run: |
+        pyinstaller CHatList.spec
+    
+    - name: Create installer
+      run: |
+        python create_installer.py
+      continue-on-error: true  # Продолжить, если Inno Setup не установлен в CI
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/CHatList-${{ env.VERSION }}.exe
+          installer/CHatList-Setup-${{ env.VERSION }}.exe
+        body_path: release-template.md
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatList - Сравнение ответов нейросетей</title>
+    <meta name="description" content="ChatList - приложение для отправки промтов в несколько AI-моделей и сравнения их ответов">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            padding: 60px 20px 40px;
+        }
+
+        header h1 {
+            font-size: 3.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        header p {
+            font-size: 1.3em;
+            opacity: 0.95;
+            margin-bottom: 30px;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .download-section {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .feature-card p {
+            color: #666;
+        }
+
+        .icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+
+        .requirements {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .requirements h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .requirements ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .requirements li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .requirements li:before {
+            content: "✓ ";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .screenshots {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .screenshots h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .screenshot {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .screenshot img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 40px 20px;
+            margin-top: 60px;
+        }
+
+        footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        .github-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .github-link:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2.5em;
+            }
+
+            .download-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 ChatList</h1>
+            <p>Сравнение ответов нейросетей</p>
+            <span class="version-badge">Версия 1.0.0</span>
+        </header>
+
+        <div class="download-section">
+            <h2 style="text-align: center; color: #667eea; margin-bottom: 20px;">📥 Скачать приложение</h2>
+            <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                Выберите версию для скачивания. Инсталлятор рекомендуется для большинства пользователей.
+            </p>
+            <div class="download-buttons">
+                <a href="https://github.com/ваш-username/CHatList/releases/latest/download/CHatList-Setup-1.0.0.exe" class="btn">
+                    📦 Инсталлятор (рекомендуется)
+                </a>
+                <a href="https://github.com/ваш-username/CHatList/releases/latest/download/CHatList-1.0.0.exe" class="btn btn-secondary">
+                    💼 Портативная версия
+                </a>
+            </div>
+            <p style="text-align: center; margin-top: 20px; color: #999; font-size: 0.9em;">
+                Все релизы доступны на <a href="https://github.com/ваш-username/CHatList/releases" style="color: #667eea;">странице релизов</a>
+            </p>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="icon">🚀</div>
+                <h3>Множественные модели</h3>
+                <p>Отправляйте один промт в несколько AI-моделей одновременно и сравнивайте их ответы в удобной таблице.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">💾</div>
+                <h3>Сохранение истории</h3>
+                <p>Все ваши промты и результаты сохраняются в локальной базе данных SQLite для последующего просмотра.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">🎨</div>
+                <h3>Гибкие настройки</h3>
+                <p>Выберите светлую или темную тему, настройте размер шрифта под свои предпочтения.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">🤖</div>
+                <h3>AI-ассистент</h3>
+                <p>Встроенный помощник для улучшения и оптимизации ваших промтов перед отправкой.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">📝</div>
+                <h3>Экспорт данных</h3>
+                <p>Экспортируйте результаты в Markdown или JSON для дальнейшей обработки и анализа.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon">🔌</div>
+                <h3>OpenRouter API</h3>
+                <p>Работает с множеством AI-моделей через единый API OpenRouter, включая бесплатные модели.</p>
+            </div>
+        </div>
+
+        <div class="requirements">
+            <h2>📋 Системные требования</h2>
+            <ul>
+                <li>Windows 10 или новее</li>
+                <li>64-bit система</li>
+                <li>~50 МБ свободного места на диске</li>
+                <li>Интернет-соединение для работы с AI-моделями</li>
+                <li>API-ключ OpenRouter (получить на <a href="https://openrouter.ai/" target="_blank">openrouter.ai</a>)</li>
+            </ul>
+        </div>
+
+        <div class="screenshots">
+            <h2>📸 Скриншоты</h2>
+            <p style="text-align: center; color: #999; margin-bottom: 30px;">
+                Добавьте скриншоты приложения здесь
+            </p>
+            <!--
+            <div class="screenshot-grid">
+                <div class="screenshot">
+                    <img src="screenshot1.png" alt="Главное окно">
+                </div>
+                <div class="screenshot">
+                    <img src="screenshot2.png" alt="История промтов">
+                </div>
+            </div>
+            -->
+        </div>
+
+        <footer>
+            <p>ChatList - открытый проект для сравнения ответов AI-моделей</p>
+            <a href="https://github.com/ваш-username/CHatList" class="github-link" target="_blank" id="github-link">
+                📂 Исходный код на GitHub
+            </a>
+            <p style="margin-top: 20px; opacity: 0.8;">
+                Лицензия: <a href="LICENSE">MIT License</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

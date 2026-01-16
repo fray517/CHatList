@@ -16,6 +16,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QKeySequence, QIcon
 import os
 
+from version import __version__
+
 from src import db
 from src.models import Model, get_active_models, add_default_models
 from src.network import send_prompt_to_model
@@ -56,7 +58,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         """Инициализация главного окна."""
         super().__init__()
-        self.setWindowTitle('ChatList - Сравнение ответов нейросетей')
+        self.setWindowTitle(f'ChatList v{__version__} - Сравнение ответов нейросетей')
         self.setGeometry(100, 100, 1200, 800)
         
         # Установка иконки приложения
