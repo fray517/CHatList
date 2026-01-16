@@ -13,13 +13,15 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QMessageBox, QCheckBox, QHeaderView, QProgressBar,
     QMenuBar, QMenu, QAction, QPlainTextEdit, QDialog, QDialogButtonBox
 )
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QIcon
+import os
 
 from src import db
 from src.models import Model, get_active_models, add_default_models
 from src.network import send_prompt_to_model
 from src.ui.models_dialog import ModelsDialog
 from src.ui.history_dialogs import PromptsHistoryDialog, ResultsHistoryDialog
+from src.ui.prompt_enhancer_dialog import PromptEnhancerDialog
 from src.export import export_to_markdown, export_to_json
 
 
@@ -54,6 +56,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle('ChatList - Сравнение ответов нейросетей')
         self.setGeometry(100, 100, 1200, 800)
+        
+        # Установка иконки приложения
+        icon_path = os.path.join(os.path.dirname(__file__), 'app.ico')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # Временная таблица результатов (в памяти)
         self.temp_results: List[Dict[str, Any]] = []
@@ -112,6 +119,13 @@ class MainWindow(QMainWindow):
         results_action.triggered.connect(self.on_results_history)
         history_menu.addAction(results_action)
 
+        # Меню "Улучшение"
+        enhance_menu = menubar.addMenu('Улучшение')
+        enhance_action = QAction('Улучшить промт', self)
+        enhance_action.setShortcut(QKeySequence('Ctrl+I'))
+        enhance_action.triggered.connect(self.on_enhance_prompt_clicked)
+        enhance_menu.addAction(enhance_action)
+
         # Меню "Экспорт"
         export_menu = menubar.addMenu('Экспорт')
         export_md_action = QAction('Экспорт в Markdown', self)
@@ -150,6 +164,10 @@ class MainWindow(QMainWindow):
         self.send_button = QPushButton('Отправить')
         self.send_button.clicked.connect(self.on_send_clicked)
         buttons_layout.addWidget(self.send_button)
+
+        self.enhance_button = QPushButton('Улучшить промт')
+        self.enhance_button.clicked.connect(self.on_enhance_prompt_clicked)
+        buttons_layout.addWidget(self.enhance_button)
 
         self.save_prompt_button = QPushButton('Сохранить промт')
         self.save_prompt_button.clicked.connect(self.on_save_prompt_clicked)
@@ -629,10 +647,39 @@ class MainWindow(QMainWindow):
 
         export_to_json(export_results, prompt_text, self)
 
+    def on_enhance_prompt_clicked(self):
+        """Обработчик нажатия кнопки 'Улучшить промт'."""
+        prompt_text = self.prompt_input.toPlainText().strip()
+        if not prompt_text:
+            QMessageBox.warning(
+                self,
+                'Предупреждение',
+                'Введите промт для улучшения!'
+            )
+            return
+
+        # Открытие диалога улучшения промтов
+        dialog = PromptEnhancerDialog(self, prompt_text)
+        if dialog.exec_() == PromptEnhancerDialog.Accepted:
+            if dialog.selected_prompt:
+                # Подстановка выбранного варианта в поле ввода
+                self.prompt_input.setPlainText(dialog.selected_prompt)
+                QMessageBox.information(
+                    self,
+                    'Успех',
+                    'Улучшенный промт подставлен в поле ввода!'
+                )
+
 
 def main():
     """Точка входа в приложение."""
     app = QApplication(sys.argv)
+    
+    # Установка иконки приложения
+    icon_path = os.path.join(os.path.dirname(__file__), 'app.ico')
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+    
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())

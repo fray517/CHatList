@@ -17,7 +17,11 @@ Write-Host "Запуск PyInstaller..." -ForegroundColor Yellow
 if (Test-Path "CHatList.spec") {
     pyinstaller CHatList.spec
 } else {
-    pyinstaller --onefile --windowed --name "CHatList" main.py
+    if (Test-Path "app.ico") {
+        pyinstaller --onefile --windowed --name "CHatList" --icon=app.ico main.py
+    } else {
+        pyinstaller --onefile --windowed --name "CHatList" main.py
+    }
 }
 
 Write-Host "`nСборка завершена!" -ForegroundColor Green
